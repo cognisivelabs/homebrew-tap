@@ -1,0 +1,46 @@
+name: Update Formula
+
+on:
+  repository_dispatch:
+    types: [update-formula]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Update recall formula
+        run: |
+          VERSION="${{ github.event.client_payload.version }}"
+          SHA256="${{ github.event.client_payload.sha256 }}"
+          TAG_VERSION="${VERSION#v}"
+
+          cat > Formula/recall.rb << FORMULA
+          class Recall < Formula
+            desc "Your external memory for the terminal. Save, search, and execute commands."
+            homepage "https://github.com/cognisivelabs/recall-cli"
+            url "https://github.com/cognisivelabs/recall-cli/archive/refs/tags/${VERSION}.tar.gz"
+            sha256 "${SHA256}"
+            license "MIT"
+
+            depends_on "go" => :build
+
+            def install
+              system "go", "build", *std_go_args(ldflags: "-s -w"), "./cmd/recall"
+            end
+
+            test do
+              assert_match "Recall", shell_output("#{bin}/recall --help")
+            end
+          end
+          FORMULA
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/recall.rb
+          git commit -m "Update recall to ${{ github.event.client_payload.version }}"
+          git push
